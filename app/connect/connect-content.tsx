@@ -178,6 +178,7 @@ export default function ConnectContent() {
   }
 
   if (appState === 'accepted') {
+    const deepLinkUrl = `nearyou://connect/accept?deep_auth=${encodeURIComponent(safeId)}`;
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-accent-green text-black selection:bg-black selection:text-white">
         <motion.div 
@@ -190,13 +191,31 @@ export default function ConnectContent() {
             <div className="w-6 h-6 bg-black animate-pulse" />
           </div>
           <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight uppercase leading-none mb-4">Connection<br/>Active</h1>
-          <p className="font-mono text-sm tracking-wider uppercase mb-12">
-            Secure stream established. Handing over to native app.
+          <p className="font-mono text-sm tracking-wider uppercase mb-8">
+            Secure stream established.
           </p>
+
+          <div className="w-full flex flex-col gap-3 mb-10">
+            <a 
+               href={deepLinkUrl}
+               className="w-full h-16 bg-black text-white font-bold uppercase tracking-widest hover:bg-neutral-900 transition-colors text-xs flex items-center justify-center gap-2 border border-black"
+            >
+              <span>➔ Open NearYou App</span>
+            </a>
+            
+            <button 
+               onClick={() => {
+                 window.location.href = deepLinkUrl;
+               }}
+               className="w-full h-12 bg-transparent border border-black/30 text-black font-mono font-bold uppercase tracking-wider text-[10px] hover:border-black transition-colors"
+            >
+              Relaunch Handshake
+            </button>
+          </div>
           
           <button 
              onClick={() => setAppState('viewing')}
-             className="w-full py-4 border border-black text-black font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-colors text-xs"
+             className="text-xs uppercase font-mono border-b border-black pb-0.5 hover:text-neutral-800 transition-colors"
           >
             Review Session
           </button>
