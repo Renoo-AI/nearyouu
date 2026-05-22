@@ -25,7 +25,7 @@ const DATA_LAYERS = [
 
 export default function ConnectContent() {
   const searchParams = useSearchParams();
-  const userId = searchParams.get('user');
+  const userId = searchParams.get('deep_auth') || searchParams.get('user');
   const token = searchParams.get('token');
   
   // Anti-XSS and injection sanitization
@@ -57,7 +57,7 @@ export default function ConnectContent() {
 
     if (appState === 'decrypting') {
       const timer = setTimeout(() => {
-        if (!userId || !token || token.length < 10) {
+        if (!userId) {
           setAppState('invalid');
           localStorage.setItem('connection_attempts', (attempts + 1).toString());
         } else {
