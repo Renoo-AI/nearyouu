@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "connection": {
+      "title": "Connection",
+      "description": "Representative schema of an active connection between a sender and an authenticated recipient.",
+      "type": "object",
+      "properties": {
+        "senderId": {
+          "type": "string",
+          "description": "Identifier or name of the connection initiator."
+        },
+        "recipientId": {
+          "type": "string",
+          "description": "Firebase UID of the recipient."
+        },
+        "recipientEmail": {
+          "type": "string",
+          "description": "Account email address of the authenticated peer."
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Display name of the authenticated peer."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["accepted", "declined"],
+          "description": "Current authorization state of the connection request."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Standard timestamp when action took place."
+        }
+      },
+      "required": ["senderId", "recipientId", "recipientEmail", "recipientName", "status", "timestamp"]
+    }
+  },
+  "firestore": {
+    "connections/{connectionId}": {
+      "schema": "connection",
+      "description": "Storing bi-directional connection authorizations."
+    }
+  }
+}

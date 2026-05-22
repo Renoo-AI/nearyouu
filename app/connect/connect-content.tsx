@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   MapPin, 
   Smartphone, 
-  Fingerprint,
   Mic,
   Camera,
   HeartPulse,
@@ -13,6 +12,9 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../../lib/firebase';
 
 const DATA_LAYERS = [
   { id: 'location', name: 'LIVE LOCATION', icon: MapPin, active: true },
@@ -33,6 +35,8 @@ export default function ConnectContent() {
   
   const [appState, setAppState] = useState<'decrypting' | 'viewing' | 'connecting' | 'accepted' | 'declined' | 'invalid'>('decrypting');
   const [time, setTime] = useState<string>('00:00:00');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [faqOpen, setFaqOpen] = useState<boolean>(false);
 
   // Clock
   useEffect(() => {
@@ -43,6 +47,14 @@ export default function ConnectContent() {
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Sync Firebase authentication state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
   }, []);
 
   // Logic to simulate invalid or missing token (anti-spam/fake links)
@@ -68,20 +80,86 @@ export default function ConnectContent() {
     }
   }, [appState, userId, token]);
 
-  const handleAccept = () => {
-    // Forward all search parameters (e.g., cryptographic tokens, signatures) to prevent CSRF vulnerabilities
-    const queryStr = searchParams.toString();
-    const query = queryStr ? `?${queryStr}` : `?user=${userId || ''}`;
-    window.location.href = `nearyou://connect/accept${query}`;
-    
+  const handleAccept = async () => {
     setAppState('connecting');
-    setTimeout(() => {
+    try {
+      let user = auth.currentUser;
+      
+      // Perform genuine Google Sign-In with popup if not authenticated
+      if (!user) {
+        const provider = new GoogleAuthProvider();
+        // Force provider options for popups
+        provider.setCustomParameters({
+          prompt: 'select_account'
+        });
+        const result = await signInWithPopup(auth, provider);
+        user = result.user;
+      }
+
+      // Write connection record to Firestore (connections/{senderId}_{recipientId})
+      const connectionDocId = `${safeId}_${user.uid}`;
+      try {
+        await setDoc(doc(db, 'connections', connectionDocId), {
+          senderId: safeId,
+          recipientId: user.uid,
+          recipientEmail: user.email || '',
+          recipientName: user.displayName || 'Authorized Peer',
+          status: 'accepted',
+          timestamp: new Date().toISOString()
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `connections/${connectionDocId}`);
+      }
+
       setAppState('accepted');
-    }, 2000);
+
+      // Seamless Mobile Deep Link Handshake Redirection back to native Android
+      setTimeout(() => {
+        const deepLinkUrl = `nearyou://connect/accept?deep_auth=${encodeURIComponent(safeId)}`;
+        window.location.href = deepLinkUrl;
+      }, 1500);
+
+    } catch (error) {
+      console.error("Authentication or database writing error:", error);
+      setAppState('viewing');
+    }
   };
 
-  const handleDecline = () => {
+  const handleDecline = async () => {
+    setAppState('connecting');
+    try {
+      let user = auth.currentUser;
+      if (!user) {
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        user = result.user;
+      }
+
+      const connectionDocId = `${safeId}_${user.uid}`;
+      try {
+        await setDoc(doc(db, 'connections', connectionDocId), {
+          senderId: safeId,
+          recipientId: user.uid,
+          recipientEmail: user.email || '',
+          recipientName: user.displayName || 'Authorized Peer',
+          status: 'declined',
+          timestamp: new Date().toISOString()
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `connections/${connectionDocId}`);
+      }
+    } catch (e) {
+      console.error("Save decline state failed:", e);
+    }
     setAppState('declined');
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Sign out failed:", e);
+    }
   };
 
   if (appState === 'decrypting') {
@@ -113,12 +191,12 @@ export default function ConnectContent() {
           </div>
           <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight uppercase leading-none mb-4">Connection<br/>Active</h1>
           <p className="font-mono text-sm tracking-wider uppercase mb-12">
-            Secure stream established.
+            Secure stream established. Handing over to native app.
           </p>
           
           <button 
              onClick={() => setAppState('viewing')}
-             className="w-full py-4 border border-black text-black font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-colors"
+             className="w-full py-4 border border-black text-black font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-colors text-xs"
           >
             Review Session
           </button>
@@ -181,13 +259,13 @@ export default function ConnectContent() {
       {/* Top Navigation */}
       <header className="sticky top-0 z-40 w-full bg-editorial-white border-b border-black">
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 max-w-md mx-auto w-full">
-          <span className="font-display font-bold text-lg tracking-tight">NearYou.</span>
+          <span className="font-display font-bold text-lg tracking-tight col-span-1">NearYou.</span>
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full bg-accent-green opacity-75"></span>
               <span className="relative inline-flex h-2 w-2 bg-accent-green"></span>
             </span>
-            <span className="font-mono text-xs tracking-widest text-editorial-grey">CONNECTION - {time}</span>
+            <span className="font-mono text-[10px] sm:text-xs tracking-widest text-editorial-grey">CONNECTION - {time}</span>
           </div>
         </div>
       </header>
@@ -220,9 +298,42 @@ export default function ConnectContent() {
             <div className="flex flex-col">
               <span className="font-bold text-2xl leading-none uppercase mb-2">{safeId.substring(0, 12)}</span>
               <span className="font-mono font-bold text-[10px] tracking-widest text-[#00FF41] uppercase bg-black px-2 py-1 inline-block w-max mb-1">Live Request</span>
-              <span className="font-sans text-[10px] tracking-widest text-editorial-grey uppercase">Verified Peer</span>
+              <span className="font-sans text-[10px] tracking-widest text-editorial-grey uppercase font-bold">Verified Peer</span>
             </div>
           </div>
+        </motion.section>
+
+        {/* User Authentication Status */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mb-8 border border-black p-4 bg-white"
+        >
+          <span className="block font-mono text-[10px] tracking-widest text-editorial-grey uppercase mb-2">Recipient Identity Status</span>
+          {currentUser ? (
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-bold uppercase font-mono">{currentUser.displayName || 'Authorized Responder'}</span>
+                <span className="text-[10px] text-editorial-grey font-mono">{currentUser.email}</span>
+              </div>
+              <button 
+                onClick={handleSignOut}
+                className="text-[10px] font-mono font-bold uppercase tracking-widest underline text-red-500 hover:text-red-700"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="font-mono text-[10px] leading-relaxed text-editorial-grey uppercase">
+                Authorize via Google to trace this handshake.
+              </p>
+              <div className="bg-gray-100 text-[9px] font-mono p-2 border border-black/10 uppercase">
+                Google account email signature required.
+              </div>
+            </div>
+          )}
         </motion.section>
 
         <motion.section
@@ -237,25 +348,74 @@ export default function ConnectContent() {
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-              {DATA_LAYERS.map((layer, idx) => (
-                <div 
-                  key={layer.id}
-                  className={`flex flex-col justify-between p-4 border border-black h-32 transition-colors duration-200 cursor-default ${layer.active ? 'bg-white' : 'bg-gray-50 text-editorial-grey'}`}
-                >
-                  <div className="flex items-start justify-between">
-                    <layer.icon className={`w-5 h-5 ${layer.active ? 'text-black' : 'text-editorial-grey/50'}`} strokeWidth={1.5} />
-                    {layer.active && (
-                       <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-                    )}
+              {DATA_LAYERS.map((layer) => {
+                const IconComp = layer.icon;
+                return (
+                  <div 
+                    key={layer.id}
+                    className={`flex flex-col justify-between p-4 border border-black h-32 transition-colors duration-200 cursor-default ${layer.active ? 'bg-white' : 'bg-gray-50 text-editorial-grey'}`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <IconComp className={`w-5 h-5 ${layer.active ? 'text-black' : 'text-editorial-grey/50'}`} strokeWidth={1.5} />
+                      {layer.active && (
+                         <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-xs tracking-wider uppercase">{layer.name}</span>
+                      <span className="font-mono text-[9px] uppercase mt-1 opacity-70">
+                        {layer.active ? 'Active Stream' : 'Inactive'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="font-bold text-xs tracking-wider uppercase">{layer.name}</span>
-                    <span className="font-mono text-[9px] uppercase mt-1 opacity-70">
-                      {layer.active ? 'Active Stream' : 'Inactive'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Play Protect FAQ Block */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="border-t border-black py-8 mb-12"
+        >
+          <div className="flex flex-col gap-4">
+            <h3 className="font-display text-sm font-bold tracking-widest uppercase">Android Sideloading Guidance</h3>
+            
+            <div className="border border-black p-4 bg-white">
+              <button 
+                onClick={() => setFaqOpen(!faqOpen)} 
+                className="flex items-center justify-between w-full font-bold text-xs uppercase text-left font-mono"
+              >
+                <span>Why does Play Protect flag the APK?</span>
+                <span className="text-xs">{faqOpen ? '▲' : '▼'}</span>
+              </button>
+              
+              <AnimatePresence>
+                {faqOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden mt-3 pt-3 border-t border-dashed border-gray-300 font-mono text-[11px] leading-relaxed text-editorial-grey flex flex-col gap-3"
+                  >
+                    <p>
+                      <strong>1. Missing Play Store Signature:</strong> Official Play Store apps are signed centrally by Google. Custom-built raw development APKs are signed with local, ephemeral debug keys on compiling.
+                    </p>
+                    <p>
+                      <strong>2. Unlisted Identification:</strong> The app&apos;s build signature is fully unique, but is not indexed in Google&apos;s play-store database registries yet.
+                    </p>
+                    <p>
+                      <strong>3. High-Transparency Permissions:</strong> Because NearYou matches spatial coordinates and sharing states, it declares low-level diagnostic authorizations. Play Protect security engines flag unrecognized binaries executing these permissions.
+                    </p>
+                    <div className="bg-yellow-500/10 border border-yellow-500/40 text-[10px] p-2 text-yellow-800 uppercase font-bold leading-normal">
+                       ➔ Play Protect warnings are completely standard for developmental APKs. Tap &quot;More details&quot; then &quot;Install Anyway&quot; to bypass the false positive safely.
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </motion.section>
@@ -274,12 +434,14 @@ export default function ConnectContent() {
                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                  <span>AUTHORIZING...</span>
                </div>
-            ) : (
+            ) : currentUser ? (
                "Authorize & Connect"
+            ) : (
+               "Sign In & Authorize"
             )}
           </button>
           
-          {!appState.includes('connecting') && (
+          {appState !== 'connecting' && (
             <div className="pt-3 text-center">
               <button 
                 onClick={handleDecline}

@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Identity and Authentication utilities
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Connection integrity constraint
+    function isValidConnection(data) {
+      return data.keys().hasAll(['senderId', 'recipientId', 'recipientEmail', 'recipientName', 'status', 'timestamp'])
+        && data.keys().size() == 6
+        && data.senderId is string && data.senderId.size() <= 100
+        && data.recipientId is string && data.recipientId.size() <= 128
+        && data.recipientId == request.auth.uid
+        && data.recipientEmail is string && data.recipientEmail.size() <= 100
+        && data.recipientName is string && data.recipientName.size() <= 100
+        && data.status in ['accepted', 'declined'];
+    }
+
+    match /connections/{connectionId} {
+      allow get: if isSignedIn() && (resource.data.recipientId == request.auth.uid || resource.data.senderId == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.recipientId == request.auth.uid || resource.data.senderId == request.auth.uid);
+      
+      allow create: if isSignedIn() 
+                    && isEmailVerified()
+                    && isValidId(connectionId) 
+                    && isValidConnection(incoming())
+                    && incoming().recipientId == request.auth.uid;
+                    
+      allow update, delete: if false; // Once a connection request decision is submitted, it is immutable for safety
+    }
+  }
+}
