@@ -28,6 +28,9 @@ export default function ConnectContent() {
   const userId = searchParams.get('user');
   const token = searchParams.get('token');
   
+  // Anti-XSS and injection sanitization
+  const safeId = (userId || 'UNKNOWN').replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 32);
+  
   const [appState, setAppState] = useState<'decrypting' | 'viewing' | 'connecting' | 'accepted' | 'declined' | 'invalid'>('decrypting');
   const [time, setTime] = useState<string>('00:00:00');
 
@@ -206,7 +209,7 @@ export default function ConnectContent() {
           <div className="flex items-center gap-4 bg-white border border-black p-4">
             <div className="relative w-16 h-16 shrink-0 border border-black bg-gray-200">
                <Image 
-                 src={`https://picsum.photos/seed/${userId || 'unknown'}/128/128`}
+                 src={`https://picsum.photos/seed/${safeId}/128/128`}
                  alt="User Profile"
                  fill
                  className="object-cover grayscale"
@@ -215,7 +218,7 @@ export default function ConnectContent() {
                />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-lg leading-none uppercase mb-1">{(userId || 'UNKNOWN').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12)}</span>
+              <span className="font-bold text-lg leading-none uppercase mb-1">{safeId.substring(0, 12)}</span>
               <span className="font-sans font-bold text-[10px] tracking-widest text-editorial-grey uppercase">Verified Connection</span>
             </div>
           </div>
@@ -283,6 +286,12 @@ export default function ConnectContent() {
               Decline
             </button>
           )}
+
+          <div className="pt-2 text-center">
+            <a href="https://github.com/Renoo-AI/nearyouu/raw/main/nearyou.apk" target="_blank" rel="noopener noreferrer" className="text-[10px] uppercase font-mono text-editorial-grey underline hover:text-black transition-colors">
+              App not installed? Download nearyou.apk
+            </a>
+          </div>
         </div>
       </div>
     </main>
