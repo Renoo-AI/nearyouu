@@ -86,13 +86,13 @@ export default function ConnectContent() {
 
   if (appState === 'decrypting') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-editorial-white text-editorial-black p-6 selection:bg-black selection:text-white font-sans">
-        <div className="flex items-center gap-3">
-           <span className="text-sm tracking-widest uppercase font-bold">Authenticating Request</span>
+      <main className="flex min-h-screen items-center justify-center bg-[#121212] text-[#F7F7F7] p-6 font-mono selection:bg-[#F7F7F7] selection:text-[#121212]">
+        <div className="flex items-center gap-1">
+           <span className="text-sm tracking-widest uppercase">Decrypting magic link...</span>
            <motion.span 
-             animate={{ opacity: [1, 0, 1] }} 
+             animate={{ opacity: [1, 0] }} 
              transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-             className="w-2 h-2 bg-black rounded-full inline-block" 
+             className="w-2.5 h-4 bg-[#F7F7F7] inline-block" 
            />
         </div>
       </main>
@@ -206,20 +206,21 @@ export default function ConnectContent() {
             A peer has initiated a deep connection.
           </h1>
           
-          <div className="flex items-center gap-4 bg-white border border-black p-4">
-            <div className="relative w-16 h-16 shrink-0 border border-black bg-gray-200">
+          <div className="flex items-center gap-5 bg-white border border-black p-5">
+            <div className="relative w-24 h-24 shrink-0 border-2 border-black bg-gray-200">
                <Image 
-                 src={`https://picsum.photos/seed/${safeId}/128/128`}
+                 src={`https://picsum.photos/seed/${safeId}/200/200`}
                  alt="User Profile"
                  fill
-                 className="object-cover grayscale"
+                 className="object-cover grayscale contrast-125"
                  referrerPolicy="no-referrer"
                  unoptimized
                />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-lg leading-none uppercase mb-1">{safeId.substring(0, 12)}</span>
-              <span className="font-sans font-bold text-[10px] tracking-widest text-editorial-grey uppercase">Verified Connection</span>
+              <span className="font-bold text-2xl leading-none uppercase mb-2">{safeId.substring(0, 12)}</span>
+              <span className="font-mono font-bold text-[10px] tracking-widest text-[#00FF41] uppercase bg-black px-2 py-1 inline-block w-max mb-1">Live Request</span>
+              <span className="font-sans text-[10px] tracking-widest text-editorial-grey uppercase">Verified Peer</span>
             </div>
           </div>
         </motion.section>
@@ -279,12 +280,14 @@ export default function ConnectContent() {
           </button>
           
           {!appState.includes('connecting') && (
-            <button 
-              onClick={handleDecline}
-              className="w-full h-12 bg-transparent text-black uppercase font-bold tracking-widest border border-black hover:bg-gray-100 transition-colors text-xs"
-            >
-              Decline
-            </button>
+            <div className="pt-3 text-center">
+              <button 
+                onClick={handleDecline}
+                className="text-xs uppercase font-bold font-mono text-editorial-grey hover:text-black transition-colors"
+              >
+                Reject Connection
+              </button>
+            </div>
           )}
 
           <div className="pt-2 text-center">
