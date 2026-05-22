@@ -1,0 +1,6 @@
+{
+  "name": "NearYou",
+  "description": "Web companion for NearYou magic link connection requests.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
